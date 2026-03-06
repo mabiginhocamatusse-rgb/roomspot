@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RoomSpot</title>
+
+<style>
+body{font-family:Arial;background:#f2f2f2;margin:0;padding:0}
+header{background:#0d6efd;color:white;padding:16px;text-align:center}
+.container{padding:15px}
+button{padding:10px 14px;margin:5px;border:none;background:#0d6efd;color:white;border-radius:6px;font-size:14px;cursor:pointer}
+.card{background:white;padding:15px;margin-top:12px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1)}
+input,textarea,select{width:100%;padding:10px;margin-top:6px;margin-bottom:10px;border-radius:6px;border:1px solid #ccc}
+img{width:100%;border-radius:8px;margin-bottom:8px}
+.price{font-size:18px;font-weight:bold;color:#198754}
+.top-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.section{margin-top:20px}
+.rating{color:#f5b301;font-size:18px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#198754;color:#fff;padding:10px 20px;border-radius:8px;display:none;z-index:1000}
+</style>
+</head>
+<body>
+
+<header>
+<h2>RoomSpot</h2>
+<p>Casas, Quartos e Serviços de Mudança</p>
+</header>
+
+<div class="container">
+
+<div class="top-buttons">
+<button onclick="showPublishRoom()">➕ Publicar Casa</button>
+<button onclick="showRooms()">🔍 Procurar Casa</button>
+<button onclick="showPublishService()">🚚 Publicar Serviço</button>
+<button onclick="showServices()">🧰 Ver Serviços</button>
+</div>
+
+<!-- PESQUISA POR CIDADE -->
+<div class="section">
+<input id="searchCity" placeholder="Pesquisar cidade (Benoni, Johannesburg...)" onkeyup="filterCity()">
+</div>
+
+<!-- PUBLICAR CASA -->
+<div id="publishRoom" style="display:none" class="section">
+<h3>Publicar Casa / Quarto</h3>
+<input id="price" placeholder="Preço por mês (R)" />
+<input id="location" placeholder="Cidade / Localização" />
+<input id="phone" placeholder="WhatsApp (ex: 27831234567)" />
+<input type="file" id="image" accept="image/*">
+<textarea id="desc" placeholder="Descrição"></textarea>
+<p><b>Taxa de publicação: R20</b></p>
+<button onclick="addRoom()">Publicar</button>
+</div>
+
+<!-- PUBLICAR SERVIÇO -->
+<div id="publishService" style="display:none" class="section">
+<h3>Publicar Serviço</h3>
+<select id="serviceType">
+<option value="Mudança">Transporte de Mudança</option>
+<option value="Limpeza">Limpeza</option>
+<option value="Móveis">Venda de Móveis</option>
+<option value="Outros">Outros</option>
+</select>
+<input id="serviceName" placeholder="Nome ou empresa" />
+<input id="servicePhone" placeholder="WhatsApp" />
+<input id="serviceLocation" placeholder="Cidade" />
+<textarea id="serviceDesc" placeholder="Descrição do serviço"></textarea>
+<p><b>Taxa mensal: R100</b></p>
+<button onclick="addService()">Publicar Serviço</button>
+</div>
+
+<!-- LISTA CASAS -->
+<div id="rooms" class="section"></div>
+
+<!-- LISTA SERVIÇOS -->
+<div id="services" class="section"></div>
+
+<div id="toast" class="toast"></div>
+
+</div>
+
+<script>
+let roomsData=[]
+let servicesData=[]
+
+// TOAST DE MENSAGEM
+function showToast(message){
+  const toast=document.getElementById('toast')
+  toast.textContent=message
+  toast.style.display='block'
+  setTimeout(()=>{toast.style.display='none'},2000)
+}
+
+function hideAll(){
+  document.getElementById('publishRoom').style.display='none'
+  document.getElementById('publishService').style.display='none'
+}
+
+function showPublishRoom(){
+  hideAll()
+  document.getElementById('publishRoom').style.display='block'
+}
+
+function showPublishService(){
+  hideAll()
+  document.getElementById('publishService').style.display='block'
+}
+
+function showRooms(){
+  hideAll()
+  loadRooms()
+}
+
+function showServices(){
+  hideAll()
+  loadServices()
+}
+
+// ADICIONAR CASA
+function addRoom(){
+  let price=document.getElementById('price').value.trim()
+  let location=document.getElementById('location').value.trim()
+  let phone=document.getElementById('phone').value.trim()
+  let desc=document.getElementById('desc').value.trim()
+  let imageFile=document.getElementById('image').files[0]
+
+  if(!price || !location || !phone){
+    showToast('Preencha preço, cidade e WhatsApp!')
+    return
+  }
+
+  const processRoom = (imageData='')=>{
+    let rooms=JSON.parse(localStorage.getItem('rooms')||'[]')
+    rooms.push({
+      id:Date.now(),
+      price,
+      location,
+      phone,
+      desc,
+      rating:5,
+      image:imageData,
+      favorite:false
+  })
+    localStorage.setItem('rooms',JSON.stringify(rooms))
+    showToast('Casa publicada!')
+    clearRoomForm()
+    loadRooms()
+  }
+
+  if(imageFile){
+    let reader=new FileReader()
+    reader.onload=function(){
+      processRoom(reader.result)
+    }
+    reader.readAsDataURL(imageFile)
+  }else{
+    processRoom()
+  }
+}
+
+// LIMPAR FORMULÁRIO CASA
+function clearRoomForm(){
+  document.getElementById('price').value=''
+  document.getElementById('location').value=''
+  document.getElementById('phone').value=''
+  document.getElementById('desc').value=''
+  document.getElementById('image').value=''
+}
+
+// CARREGAR CASAS
+function loadRooms(){
+  let rooms=JSON.parse(localStorage.getItem('rooms')||'[]')
+  roomsData=rooms
+  renderRooms(rooms)
+}
+
+// RENDERIZAR CASAS
+function renderRooms(rooms){
+  const container=document.getElementById('rooms')
+  container.innerHTML='<h3>Casas disponíveis</h3>'
+  if(rooms.length===0){
+    container.innerHTML+='<p>Nenhuma casa encontrada.</p>'
+    return
+  }
+  rooms.slice().reverse().forEach(room=>{
+    const mapLink=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(room.location)}`
+    const div=document.createElement('div')
+    div.className='card'
+    div.innerHTML=`
+      ${room.image?`<img src="${room.image}">`:''}
+      <div class="price">R${room.price}</div>
+      <b>Cidade:</b> ${room.location}<br><br>
+      <p>${room.desc||''}</p>
+      <div class="rating">⭐ ${room.rating}/5</div>
+      <div style="margin-top:8px">
+        <button onclick="toggleFavorite(${room.id})">${room.favorite?'❤️ Favorito':'🤍 Favorito'}</button>
+        <button onclick="editRoom(${room.id})">✏️ Editar</button>
+        <button onclick="deleteRoom(${room.id})">🗑️ Remover</button>
+        <a href="${mapLink}" target="_blank"><button>🗺️ Ver no mapa</button></a>
+        <a href="https://wa.me/${room.phone}" target="_blank"><button>💬 WhatsApp</button></a>
+      </div>
+    `
+    container.appendChild(div)
+  })
+}
+
+// FAVORITO
+function toggleFavorite(id){
+  let rooms=JSON.parse(localStorage.getItem('rooms')||'[]')
+  rooms=rooms.map(r=>r.id===id?{...r,favorite:!r.favorite}:r)
+  localStorage.setItem('rooms',JSON.stringify(rooms))
+  loadRooms()
+}
+
+// EDITAR CASA
+function editRoom(id){
+  let rooms=JSON.parse(localStorage.getItem('rooms')||'[]')
+  let room=rooms.find(r=>r.id===id)
+  if(!room) return
+  showPublishRoom()
+  document.getElementById('price').value=room.price
+  document.getElementById('location').value=room.location
+  document.getElementById('phone').value=room.phone
+  document.getElementById('desc').value=room.desc
+  deleteRoom(id)
+}
+
+// REMOVER CASA
+function deleteRoom(id){
+  let rooms=JSON.parse(localStorage.getItem('rooms')||'[]')
+  rooms=rooms.filter(r=>r.id!==id)
+  localStorage.setItem('rooms',JSON.stringify(rooms))
+  loadRooms()
+}
+
+// FILTRAR POR CIDADE
+function filterCity(){
+  let text=document.getElementById('searchCity').value.toLowerCase()
+  let filtered=roomsData.filter(r=>r.location.toLowerCase().includes(text))
+  renderRooms(filtered)
+}
+
+// ADICIONAR SERVIÇO
+function addService(){
+  let type=document.getElementById('serviceType').value
+  let name=document.getElementById('serviceName').value.trim()
+  let phone=document.getElementById('servicePhone').value.trim()
+  let location=document.getElementById('serviceLocation').value.trim()
+  let desc=document.getElementById('serviceDesc').value.trim()
+  if(!name||!phone||!location){
+    showToast('Preencha nome, WhatsApp e cidade!')
+    return
+  }
+  let services=JSON.parse(localStorage.getItem('services')||'[]')
+  services.push({
+    id:Date.now(),
+    type,name,phone,location,desc
+  })
+  localStorage.setItem('services',JSON.stringify(services))
+  showToast('Serviço publicado!')
+  clearServiceForm()
+  loadServices()
+}
+    
+  // LIMPAR FORMULÁRIO SERVIÇO
+function clearServiceForm(){
+  document.getElementById('serviceName').value=''
+  document.getElementById('servicePhone').value=''
+  document.getElementById('serviceLocation').value=''
+  document.getElementById('serviceDesc').value=''
+}
+
+// CARREGAR SERVIÇOS
+function loadServices(){
+  let services=JSON.parse(localStorage.getItem('services')||'[]')
+  servicesData=services
+  renderServices(services)
+}
+
+// RENDERIZAR SERVIÇOS
+function renderServices(services){
+  const container=document.getElementById('services')
+  container.innerHTML='<h3>Serviços disponíveis</h3>'
+  if(services.length===0){
+    container.innerHTML+='<p>Nenhum serviço disponível.</p>'
+    return
+  }
+  
+  services.slice().reverse().forEach(service=>{
+    const div=document.createElement('div')
+    div.className='card'
+    div.innerHTML=`
+      <b>${service.type}</b><br>
+      <b>${service.name}</b><br>
+      Cidade: ${service.location}<br><br>
+      <p>${service.desc}</p>
+      <a href="https://wa.me/${service.phone}" target="_blank"><button>Contactar</button></a>
+      <button onclick="editService(${service.id})">✏️ Editar</button>
+      <button onclick="deleteService(${service.id})">🗑️ Remover</button>
+    `
+    container.appendChild(div)
+  })
+}
+
+// EDITAR SERVIÇO
+function editService(id){
+  let services=JSON.parse(localStorage.getItem('services')||'[]')
+  let service=services.find(s=>s.id===id)
+  if(!service) return
+  showPublishService()
+  document.getElementById('serviceType').value=service.type
+  document.getElementById('serviceName').value=service.name
+  document.getElementById('servicePhone').value=service.phone
+  document.getElementById('serviceLocation').value=service.location
+  document.getElementById('serviceDesc').value=service.desc
+  deleteService(id)
+}
+
+// REMOVER SERVIÇO
+function deleteService(id){
+  let services=JSON.parse(localStorage.getItem('services')||'[]')
+  services=services.filter(s=>s.id!==id)
+  localStorage.setItem('services',JSON.stringify(services))
+  loadServices()
+}
+
+// CARREGAR INICIAL
+loadRooms()
+loadServices()
+</script>
+
+</body>
+</html>
